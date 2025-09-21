@@ -1,6 +1,6 @@
 # app/services/auth_service.py
 from fastapi import HTTPException
-from server.repositories.auth_repository import sign_up, sign_in, sign_out, get_user
+from server.repositories.auth_repository import sign_up, sign_in, sign_out, get_user, verify_access_token
 
 
 def signup_user(email: str, password: str):
@@ -36,3 +36,10 @@ def get_current_user():
         # Handle cases where no user is authenticated or token is invalid
         return {"error": str(e)}
 
+def verify_access_token_user(access_token: str):
+    try:
+        # Gọi hàm verify_access_token từ repository để giải mã và xác thực token
+        user_data = verify_access_token(access_token)
+        return user_data
+    except HTTPException as e:
+        raise e  # Trả lại lỗi HTTPException nếu token không hợp lệ
