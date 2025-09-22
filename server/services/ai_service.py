@@ -6,7 +6,7 @@ from pathlib import Path
 from joblib import load
 import numpy as np
 
-from server.schemas.ai_schema import NewsInputSchema, ClassificationResponseSchema
+from server.schemas.ai_schema import NewsInputSchema, ClassificationResponseSchema, BulkNewsAnalysisInput, BulkNewsAnalysisResponse
 from server.services.auth_service import verify_access_token_user
 from server.config import MODEL_PATH
 import text_hammer as th
@@ -63,9 +63,7 @@ def predict_sentiment(pipe, text: str, preprocess_fn=None) -> Dict[str, Any]:
 
 
 def _map_012_to_pos_neg_neu(proba_by_class: Dict[int, float]) -> Dict[str, float]:
-    """
-    Giả định chuẩn sklearn: classes_ = [0, 1, 2] -> [neg, neu, pos].
-    """
+
     neg = float(proba_by_class.get(0, 0.0))
     neu = float(proba_by_class.get(1, 0.0))
     pos = float(proba_by_class.get(2, 0.0))
@@ -106,3 +104,80 @@ def classify_news_service(
         results.append(ai_response)
 
     return results
+
+
+# server/services/ai_service.py
+import os
+from typing import List
+from fastapi import HTTPException
+from server.schemas.ai_schema import (BulkNewsAnalysisResponse, BulkNewsAnalysisInput)
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Gemini SDK
+try:
+    import google.generativeai as genai
+    _HAS_GENAI = True
+except Exception:
+    _HAS_GENAI = False
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+
+# --- HARD-CODE SYSTEM PROMPT TẠI ĐÂY ---
+SYSTEM_PROMPT_FOR_BULK_ANALYSIS = (
+    "Bạn là chuyên gia phân tích tin tức kinh tế/tài chính. "
+    "Nhiệm vụ: đọc nhiều mẩu tin (tiêu đề, mô tả, ngày xuất bản, điểm cảm xúc pos/neg/neu) "
+    "và đưa ra một bản phân tích CHUNG, cô đọng, có cấu trúc:\n"
+    "1) Bức tranh tổng quan (sentiment chủ đạo, mức độ tin cậy suy theo ngày & độ đồng nhất nội dung),\n"
+    "2) Các điểm nổi bật/đáng chú ý (bullet),\n"
+    "3) Tác động tiềm năng (cơ hội/rủi ro),\n"
+    "4) Khuyến nghị hành động ngắn gọn.\n"
+    "Giữ văn phong rõ ràng, súc tích, tránh lặp lại nội dung thô."
+)
+
+def _build_user_prompt(payload: BulkNewsAnalysisInput) -> str:
+    lines = []
+    lines.append("Dữ liệu đầu vào gồm nhiều bài:")
+    for i, item in enumerate(payload.news):
+        lines.append(f"\n--- Bài #{i} ---")
+        lines.append(f"Title: {item.title}")
+        lines.append(f"Description: {item.description}")
+        if item.publish_date:
+            lines.append(f"Publish Date: {item.publish_date}")
+        lines.append(f"Scores: pos={item.pos:.3f}, neg={item.neg:.3f}, neu={item.neu:.3f}")
+    lines.append(
+        "\nYêu cầu: Chỉ trả về PHÂN TÍCH CHUNG (không cần phân tích theo từng bài). "
+        "Trình bày theo 4 mục đã nêu trong system prompt."
+    )
+    return "\n".join(lines)
+
+def _call_gemini(system_prompt: str, user_prompt: str) -> str:
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=500, detail="Thiếu GEMINI_API_KEY trong môi trường.")
+    if not _HAS_GENAI:
+        raise HTTPException(status_code=500, detail="Thiếu thư viện google-generativeai. Cài: pip install google-generativeai")
+
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel(model_name=GEMINI_MODEL, system_instruction=system_prompt)
+    resp = model.generate_content(user_prompt)
+
+    text = getattr(resp, "text", None)
+    if not text:
+        try:
+            text = resp.candidates[0].content.parts[0].text
+        except Exception:
+            text = ""
+    if not text:
+        raise HTTPException(status_code=502, detail="Gemini không trả về nội dung hợp lệ.")
+    return text
+
+def analyze_bulk_news(payload: BulkNewsAnalysisInput, access_token: str) -> BulkNewsAnalysisResponse:
+    user_data = verify_access_token_user(access_token)
+    if not user_data:
+        raise ValueError("Invalid Access Token")
+    
+    user_prompt = _build_user_prompt(payload)
+    analysis = _call_gemini(SYSTEM_PROMPT_FOR_BULK_ANALYSIS, user_prompt)
+    return BulkNewsAnalysisResponse(analysis=analysis)
