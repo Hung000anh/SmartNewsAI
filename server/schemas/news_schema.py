@@ -3,11 +3,11 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel
 
 class NewsItemOut(BaseModel):
-    id: str
-    title: str
-    url: str
+    id: Optional[str] = None
+    title:Optional[str] = None
+    url:Optional[str] = None
     description: Optional[str] = None
-    published_time: datetime
+    published_time: Optional[datetime] = None
     section: Optional[str] = None
     thumbnail: Optional[str] = None
 
