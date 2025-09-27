@@ -66,3 +66,6 @@ Thumbs.db               # Windows specific
 .dockerignore
 Dockerfile.bak
 docker-compose.yaml.bak
+
+# certs
+/server/certs

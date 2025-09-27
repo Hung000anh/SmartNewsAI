@@ -7,7 +7,7 @@ class NewsItemOut(BaseModel):
     title: Optional[str] = None
     url: Optional[str] = None
     description: Optional[str] = None
-    published_time: datetime = None
+    published_time: Optional[datetime] = None 
     section: Optional[str] = None
     thumbnail: Optional[str] = None
 

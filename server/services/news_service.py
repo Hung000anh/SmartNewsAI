@@ -1,4 +1,5 @@
-from typing import Iterable, Optional
+# server/services/news_service.py
+from typing import Iterable, Optional, List
 from datetime import datetime
 from fastapi import Request
 from server.repositories.news_repository import NewsRepository
@@ -8,8 +9,7 @@ class NewsService:
     async def list_news(
         request: Request,
         fields: Optional[Iterable[str]] = None,
-        section: Optional[str] = None,
-        sections: Optional[Iterable[str]] = None,
+        sections: Optional[List[str]] = None,   # đã normalize ở router
         date_from: Optional[datetime] = None,
         date_to: Optional[datetime] = None,
         q: Optional[str] = None,
@@ -18,11 +18,14 @@ class NewsService:
         order_by: Optional[str] = "published_time",
         order_dir: Optional[str] = "DESC",
     ):
+        # Chuẩn hoá tối thiểu
+        q = (q or "").strip() or None
+        order_dir = (order_dir or "DESC").upper()
+
         return await NewsRepository.list(
             request=request,
             fields=fields,
-            section=section,
-            sections=sections,
+            sections=sections,       # List[str] hoặc None
             date_from=date_from,
             date_to=date_to,
             q=q,
