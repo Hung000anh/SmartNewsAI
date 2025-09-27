@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi.openapi.docs import get_swagger_ui_html
 
-router = APIRouter()
+router = APIRouter(prefix="/docs", tags=["Docs"])
 
 @router.get("", include_in_schema=False)
 def custom_docs():
