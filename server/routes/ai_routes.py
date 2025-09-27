@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
-from server.schemas.ai_schema import MultipleNewsInputSchema, ClassificationResponseSchema, BulkNewsAnalysisResponse, BulkNewsAnalysisInput
-from server.controllers.ai_controller import classify_news, analyze_bulk_news_controller
+from server.schemas.ai_schema import MultipleNewsInputSchema, ClassificationResponseSchema, NewsAnalysisResponse, NewsAnalysisInput
+from server.services.ai_service import classify_news, analyze_news
 from typing import List
 from dotenv import load_dotenv
 import requests
@@ -13,23 +13,19 @@ N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 router = APIRouter()
 
 @router.post("/classify_news", response_model=List[ClassificationResponseSchema])
-async def classify_news_route(news_data: MultipleNewsInputSchema, access_token: str):
-    return classify_news(news_data.news, access_token)
+async def classify_news_route(news_data: MultipleNewsInputSchema, request: Request):
+    return classify_news(news_data.news, request)
 
-@router.post("/analyze-bulk", response_model=BulkNewsAnalysisResponse)
-async def analyze_bulk_route(payload: BulkNewsAnalysisInput, access_token: str):
-    """
-    Phân tích tin tức CHUNG bằng Gemini (system prompt hard-code trong services).
-    Input: danh sách bản tin {title, description, publish_data, pos, neg, neu}.
-    Output: một đoạn phân tích chung.
-    """
-    return analyze_bulk_news_controller(payload, access_token)
+@router.post("/analyze-news", response_model=NewsAnalysisResponse)
+async def analyze_news_route(payload: NewsAnalysisInput, request: Request):
+    return analyze_news(payload, request)
 
 @router.post("/chatbot")
 async def chatbot_route(
     text: str,
-    access_token: str = Header(..., description="Token xác thực")
+    request: Request
 ):
+    
     headers = {"Authorization": f"Bearer {access_token}"}
     payload = {"text": text}
 
