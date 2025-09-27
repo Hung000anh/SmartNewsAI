@@ -1,5 +1,5 @@
 # app/routes/auth_routes.py
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Response, Request
 from server.services.auth_service import signup_user, signin_user, signout_user, get_info_user
 from server.schemas.auth_schema import UserCreate, UserLogin
 from server.schemas.auth_schema import AuthResponseSignUp, AuthResponseSignIn, AuthResponseSignOut
@@ -33,5 +33,5 @@ async def sign_out():
     "/current_user",
     summary="Get info current user",
 )
-async def get_current_user():
-    return get_info_user()
+async def get_current_user(request: Request):
+    return get_info_user(request)
