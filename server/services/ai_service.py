@@ -1,12 +1,12 @@
 from __future__ import annotations
-
+from fastapi import Request
 from typing import List, Dict, Any
 from pathlib import Path
 
 from joblib import load
 import numpy as np
 
-from server.schemas.ai_schema import NewsInputSchema, ClassificationResponseSchema, BulkNewsAnalysisInput, BulkNewsAnalysisResponse
+from server.schemas.ai_schema import NewsInputSchema, ClassificationResponseSchema, NewsAnalysisInput, NewsAnalysisResponse
 from server.services.auth_service import verify_access_token_user
 from server.config import MODEL_PATH
 import text_hammer as th
@@ -77,11 +77,14 @@ def _map_012_to_pos_neg_neu(proba_by_class: Dict[int, float]) -> Dict[str, float
 
 
 # ===================== Main service =====================
-def classify_news_service(
-    news_data: List[NewsInputSchema],
-    access_token: str
+def classify_news(
+    news_data: List[NewsInputSchema], request: Request
 ) -> List[ClassificationResponseSchema]:
     # 1) Verify access token (Supabase)
+    access_token = request.cookies.get("access_token")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     user_data = verify_access_token_user(access_token)
     if not user_data:
         raise ValueError("Invalid Access Token")
@@ -109,15 +112,18 @@ def classify_news_service(
 # server/services/ai_service.py
 import os
 from typing import List
-from fastapi import HTTPException
-from server.schemas.ai_schema import (BulkNewsAnalysisResponse, BulkNewsAnalysisInput)
+from fastapi import HTTPException, Request
 from dotenv import load_dotenv
+
+from server.schemas.ai_schema import NewsAnalysisResponse, NewsAnalysisInput
+from server.services.auth_service import verify_access_token_user  # điều chỉnh import đúng vị trí file của anh
 
 load_dotenv()
 
 # Gemini SDK
 try:
     import google.generativeai as genai
+    from google.api_core.exceptions import NotFound
     _HAS_GENAI = True
 except Exception:
     _HAS_GENAI = False
@@ -125,7 +131,6 @@ except Exception:
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
-# --- HARD-CODE SYSTEM PROMPT TẠI ĐÂY ---
 SYSTEM_PROMPT_FOR_BULK_ANALYSIS = (
     "Bạn là chuyên gia phân tích tin tức kinh tế/tài chính. "
     "Nhiệm vụ: đọc nhiều mẩu tin (tiêu đề, mô tả, ngày xuất bản, điểm cảm xúc pos/neg/neu) "
@@ -137,14 +142,15 @@ SYSTEM_PROMPT_FOR_BULK_ANALYSIS = (
     "Giữ văn phong rõ ràng, súc tích, tránh lặp lại nội dung thô."
 )
 
-def _build_user_prompt(payload: BulkNewsAnalysisInput) -> str:
-    lines = []
+def _build_user_prompt(payload: NewsAnalysisInput) -> str:
+    lines: List[str] = []
     lines.append("Dữ liệu đầu vào gồm nhiều bài:")
     for i, item in enumerate(payload.news):
         lines.append(f"\n--- Bài #{i} ---")
         lines.append(f"Title: {item.title}")
         lines.append(f"Description: {item.description}")
-        if item.publish_date:
+        # THỐNG NHẤT field là publish_date
+        if getattr(item, "publish_date", None):
             lines.append(f"Publish Date: {item.publish_date}")
         lines.append(f"Scores: pos={item.pos:.3f}, neg={item.neg:.3f}, neu={item.neu:.3f}")
     lines.append(
@@ -153,6 +159,19 @@ def _build_user_prompt(payload: BulkNewsAnalysisInput) -> str:
     )
     return "\n".join(lines)
 
+def _pick_available_model(preferred=("gemini-1.5-flash","gemini-1.5-pro","gemini-1.0-pro")) -> str:
+    names = [m.name for m in genai.list_models() if "generateContent" in m.supported_generation_methods]
+    short = {n.split("/")[-1] for n in names}
+    for m in preferred:
+        if m in short:
+            return m
+    # Fallback: CHỈ chọn model bắt đầu bằng gemini-
+    for n in short:
+        if n.startswith("gemini-"):
+            return n
+    # Nếu không có model gemini nào -> ném lỗi rõ ràng
+    raise HTTPException(status_code=502, detail="No Gemini model available for generateContent on this API key.")
+
 def _call_gemini(system_prompt: str, user_prompt: str) -> str:
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="Thiếu GEMINI_API_KEY trong môi trường.")
@@ -160,8 +179,21 @@ def _call_gemini(system_prompt: str, user_prompt: str) -> str:
         raise HTTPException(status_code=500, detail="Thiếu thư viện google-generativeai. Cài: pip install google-generativeai")
 
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel(model_name=GEMINI_MODEL, system_instruction=system_prompt)
-    resp = model.generate_content(user_prompt)
+    model_name = GEMINI_MODEL or _pick_available_model()
+    model = genai.GenerativeModel(model_name=model_name, system_instruction=system_prompt)
+
+    try:
+        resp = model.generate_content(user_prompt)
+    except NotFound as e:
+        # Fallback thử model khác nếu model_name không tồn tại
+        alt = _pick_available_model()
+        if alt != model_name:
+            model = genai.GenerativeModel(model_name=alt, system_instruction=system_prompt)
+            resp = model.generate_content(user_prompt)
+        else:
+            raise HTTPException(status_code=502, detail=f"Gemini model '{model_name}' not found.") from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Gemini error: {str(e)}") from e
 
     text = getattr(resp, "text", None)
     if not text:
@@ -173,11 +205,16 @@ def _call_gemini(system_prompt: str, user_prompt: str) -> str:
         raise HTTPException(status_code=502, detail="Gemini không trả về nội dung hợp lệ.")
     return text
 
-def analyze_bulk_news(payload: BulkNewsAnalysisInput, access_token: str) -> BulkNewsAnalysisResponse:
+def analyze_news(payload: NewsAnalysisInput, request: Request) -> NewsAnalysisResponse:
+    # Auth: đọc token từ cookie
+    access_token = request.cookies.get("access_token")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
     user_data = verify_access_token_user(access_token)
     if not user_data:
-        raise ValueError("Invalid Access Token")
-    
+        raise HTTPException(status_code=401, detail="Invalid Access Token")
+
     user_prompt = _build_user_prompt(payload)
     analysis = _call_gemini(SYSTEM_PROMPT_FOR_BULK_ANALYSIS, user_prompt)
-    return BulkNewsAnalysisResponse(analysis=analysis)
+    return NewsAnalysisResponse(analysis=analysis)
