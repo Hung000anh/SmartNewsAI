@@ -6,8 +6,7 @@ from pathlib import Path
 from joblib import load
 import numpy as np
 
-from server.schemas.ai_schema import NewsInputSchema, ClassificationResponseSchema, NewsAnalysisInput, NewsAnalysisResponse
-from server.services.auth_service import verify_access_token_user
+from server.modules.ai.schemas import NewsInputSchema, ClassificationResponseSchema, NewsAnalysisInput, NewsAnalysisResponse
 from server.config import MODEL_PATH
 import text_hammer as th
 
@@ -35,7 +34,6 @@ def _get_model():
     global _MODEL, _CLASSES
     if _MODEL is None:
         path = Path(MODEL_PATH)
-        print("Đường dẫn mô hình: ", path)
         if not path.exists():
             raise FileNotFoundError(f"MODEL_PATH not found: {path}")
         _MODEL = load(path)
@@ -78,21 +76,13 @@ def _map_012_to_pos_neg_neu(proba_by_class: Dict[int, float]) -> Dict[str, float
 
 # ===================== Main service =====================
 def classify_news(
-    news_data: List[NewsInputSchema], request: Request
+    news_data: List[NewsInputSchema]
 ) -> List[ClassificationResponseSchema]:
-    # 1) Verify access token (Supabase)
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
 
-    user_data = verify_access_token_user(access_token)
-    if not user_data:
-        raise ValueError("Invalid Access Token")
-
-    # 2) Load model (cached)
+    # 1) Load model (cached)
     model = _get_model()
 
-    # 3) Inference từng bản tin
+    # 2) Inference từng bản tin
     results: List[ClassificationResponseSchema] = []
     for news in news_data:
         title = getattr(news, "title", "") or ""
@@ -114,9 +104,7 @@ import os
 from typing import List
 from fastapi import HTTPException, Request
 from dotenv import load_dotenv
-
-from server.schemas.ai_schema import NewsAnalysisResponse, NewsAnalysisInput
-from server.services.auth_service import verify_access_token_user  # điều chỉnh import đúng vị trí file của anh
+from server.modules.ai.schemas import NewsAnalysisResponse, NewsAnalysisInput
 
 load_dotenv()
 
@@ -205,15 +193,7 @@ def _call_gemini(system_prompt: str, user_prompt: str) -> str:
         raise HTTPException(status_code=502, detail="Gemini không trả về nội dung hợp lệ.")
     return text
 
-def analyze_news(payload: NewsAnalysisInput, request: Request) -> NewsAnalysisResponse:
-    # Auth: đọc token từ cookie
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    user_data = verify_access_token_user(access_token)
-    if not user_data:
-        raise HTTPException(status_code=401, detail="Invalid Access Token")
+def analyze_news(payload: NewsAnalysisInput) -> NewsAnalysisResponse:
 
     user_prompt = _build_user_prompt(payload)
     analysis = _call_gemini(SYSTEM_PROMPT_FOR_BULK_ANALYSIS, user_prompt)

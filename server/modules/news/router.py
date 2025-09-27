@@ -1,10 +1,10 @@
 from typing import Optional, List, Iterable
 from datetime import datetime
 from fastapi import APIRouter, Request, Query
-from server.services.news_service import NewsService
-from server.schemas.news_schema import NewsListResponse
+from server.modules.news.service import list_news
+from server.modules.news.schemas import NewsListResponse
 
-router = APIRouter()
+router = APIRouter(prefix="/news", tags=["News"])
 
 def _parse_fields_csv(raw: Optional[str]) -> Optional[List[str]]:
     if not raw:
@@ -97,7 +97,7 @@ async def get_news(
     if order_dir_norm not in ("ASC", "DESC"):
         order_dir_norm = "DESC"
 
-    return await NewsService.list_news(
+    return await list_news(
         request=request,
         fields=field_list,
         sections=section_list_norm,   # <-- truyền List[str] đã normalize

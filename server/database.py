@@ -23,7 +23,6 @@ async def lifespan(app: FastAPI):
         max_size=5,
         statement_cache_size=0,  # Để tránh lỗi khi đi qua PgBouncer
     )
-    print("✅ Database pool created")
     try:
         yield
     finally:
@@ -31,9 +30,8 @@ async def lifespan(app: FastAPI):
         if app.state.pool:
             try:
                 await asyncio.wait_for(app.state.pool.close(), timeout=5)
-                print("✅ Database pool closed")
             except asyncio.TimeoutError:
-                print("⚠️ Pool.close() timeout, force exit")
+                print("Pool.close() timeout, force exit")
             app.state.pool = None
 
 # Hàm để lấy pool kết nối từ app.state
