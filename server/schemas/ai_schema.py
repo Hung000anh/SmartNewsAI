@@ -26,11 +26,11 @@ class NewsAnalysisItem(BaseModel):
     neg: float = Field(..., ge=0.0, le=1.0)
     neu: float = Field(..., ge=0.0, le=1.0)
 
-    class Config:
-        allow_population_by_field_name = True  # cho phép nạp dữ liệu bằng field_name hoặc alias
-
-class BulkNewsAnalysisInput(BaseModel):
+    model_config = {
+        "validate_by_name": True
+    }
+class NewsAnalysisInput(BaseModel):
     news: List[NewsAnalysisItem] = Field(..., min_items=1, description="Danh sách bài viết kèm pos/neg/neu")
 
-class BulkNewsAnalysisResponse(BaseModel):
+class NewsAnalysisResponse(BaseModel):
     analysis: str = Field(..., description="Phân tích tổng hợp (chung) từ Gemini")
