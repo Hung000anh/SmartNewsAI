@@ -13,7 +13,7 @@ api_v1.include_router(auth_routes.router, prefix="/auth", tags=["Auth"])
 # News routes
 api_v1.include_router(news_routes.router, prefix="/news", tags=["News"])
 
-#
+# AI routes
 api_v1.include_router(ai_routes.router, prefix="/ai", tags=["AI"])
 
 # Docs routes
