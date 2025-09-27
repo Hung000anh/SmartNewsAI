@@ -1,6 +1,6 @@
 # app/routes/auth_routes.py
-from fastapi import APIRouter, Depends
-from server.controllers.auth_controller import sign_up_controller, sign_in_controller, sign_out_controller, get_current_user_controller
+from fastapi import APIRouter, Depends, Response
+from server.services.auth_service import signup_user, signin_user, signout_user, get_info_user
 from server.schemas.auth_schema import UserCreate, UserLogin
 from server.schemas.auth_schema import AuthResponseSignUp, AuthResponseSignIn, AuthResponseSignOut
 router = APIRouter()
@@ -11,15 +11,15 @@ router = APIRouter()
         response_model=AuthResponseSignUp
 )
 async def sign_up(user: UserCreate):
-    return sign_up_controller(user)
+    return signup_user(user)
 
 @router.post(
     "/sign_in",
     summary="Sign in an existing user",
     response_model=AuthResponseSignIn
 )
-async def sign_in(user: UserLogin):
-    return sign_in_controller(user)
+async def sign_in(user: UserLogin, response: Response):
+    return signin_user(user.email, user.password, response)
 
 @router.post(
     "/sign_out",
@@ -27,11 +27,11 @@ async def sign_in(user: UserLogin):
     response_model=AuthResponseSignOut
 )
 async def sign_out():
-    return sign_out_controller()
+    return signout_user()
 
 @router.get(
     "/current_user",
     summary="Get info current user",
 )
 async def get_current_user():
-    return get_current_user_controller()
+    return get_info_user()
