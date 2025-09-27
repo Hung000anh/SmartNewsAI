@@ -1,5 +1,5 @@
 # app/services/auth_service.py
-from fastapi import HTTPException, Response
+from fastapi import HTTPException, Response, Request
 from typing import Optional
 import os
 from dotenv import load_dotenv
@@ -48,13 +48,13 @@ def signout_user():
     supabase.auth.sign_out()
     return {"message": "User signed out successfully."}
     
-def get_info_user():
-    try:
-        user = supabase.auth.get_user()
-        return user
-    except Exception as e:
-        # Handle cases where no user is authenticated or token is invalid
-        return {"error": str(e)}
+def get_info_user(request: Request):
+    access_token = request.cookies.get("access_token")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    user_data = verify_access_token_user(access_token)
+    return user_data
 
 def verify_access_token_user(access_token: str):
     try:
