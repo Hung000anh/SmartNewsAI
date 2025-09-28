@@ -1,17 +1,25 @@
 from pydantic import BaseModel
 from typing import List
+from datetime import datetime
 
-class NewsInputSchema(BaseModel):
+class NewsInput(BaseModel):
     title: str
     description: str
+    publish_date: datetime
 
-class ClassificationResponseSchema(BaseModel):
+class ClassificationNewOutput(BaseModel):
+    title: str
+    description: str
+    publish_date: datetime
     pos: float
     neg: float
     neu: float
 
-class MultipleNewsInputSchema(BaseModel):
-    news: List[NewsInputSchema]
+class MultipleNewsInput(BaseModel):
+    news: List[NewsInput]
+
+class ClassificationMultipleNewsOutput(BaseModel):
+    news: List[ClassificationNewOutput]
 
 # server/schemas/ai_schema.py
 from pydantic import BaseModel, Field
@@ -34,3 +42,8 @@ class NewsAnalysisInput(BaseModel):
 
 class NewsAnalysisResponse(BaseModel):
     analysis: str = Field(..., description="Phân tích tổng hợp (chung) từ Gemini")
+
+class ChatBotResponse(BaseModel):
+    ok: str = Field(..., description="Trạng thái chat bot")
+    code: str = Field(..., description="Code n8n chat bot")
+    message: str = Field(..., description="Phản hồi chat bot")
