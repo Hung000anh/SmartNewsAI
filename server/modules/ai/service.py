@@ -6,7 +6,7 @@ from pathlib import Path
 from joblib import load
 import numpy as np
 
-from server.modules.ai.schemas import NewsInputSchema, ClassificationResponseSchema, NewsAnalysisInput, NewsAnalysisResponse
+from server.modules.ai.schemas import MultipleNewsInput, ClassificationMultipleNewsOutput, ClassificationNewOutput, NewsAnalysisResponse
 from server.config import MODEL_PATH
 import text_hammer as th
 
@@ -75,28 +75,29 @@ def _map_012_to_pos_neg_neu(proba_by_class: Dict[int, float]) -> Dict[str, float
 
 
 # ===================== Main service =====================
-def classify_news(
-    news_data: List[NewsInputSchema]
-) -> List[ClassificationResponseSchema]:
-
-    # 1) Load model (cached)
+def classify_news(news_data: List[NewsInput]) -> ClassificationMultipleNewsOutput:
     model = _get_model()
+    results: List[ClassificationNewOutput] = []
 
-    # 2) Inference từng bản tin
-    results: List[ClassificationResponseSchema] = []
     for news in news_data:
-        title = getattr(news, "title", "") or ""
-        description = getattr(news, "description", "") or ""
+        title = news.title or ""
+        description = news.description or ""
+        publish_date = news.publish_date
+
         text = f"{title} {description}".strip()
-
         pred = predict_sentiment(model, text, preprocess_fn=text_preprocessing)
-        proba_by_class = pred["proba"]  # {0: x, 1: y, 2: z}
+        mapped = _map_012_to_pos_neg_neu(pred["proba"])
 
-        mapped = _map_012_to_pos_neg_neu(proba_by_class)
-        ai_response = ClassificationResponseSchema(**mapped)
-        results.append(ai_response)
+        results.append(
+            ClassificationNewOutput(
+                title=title,
+                description=description,
+                publish_date=publish_date,
+                **mapped,
+            )
+        )
 
-    return results
+    return ClassificationMultipleNewsOutput(news=results)
 
 
 # server/services/ai_service.py
