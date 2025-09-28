@@ -43,6 +43,9 @@ class NewsAnalysisInput(BaseModel):
 class NewsAnalysisResponse(BaseModel):
     analysis: str = Field(..., description="Phân tích tổng hợp (chung) từ Gemini")
 
+class ChatBotInput(BaseModel):
+    text: str
+
 class ChatBotResponse(BaseModel):
     ok: str = Field(..., description="Trạng thái chat bot")
     code: str = Field(..., description="Code n8n chat bot")
