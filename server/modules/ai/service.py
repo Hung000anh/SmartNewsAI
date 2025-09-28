@@ -6,7 +6,7 @@ from pathlib import Path
 from joblib import load
 import numpy as np
 
-from server.modules.ai.schemas import MultipleNewsInput, ClassificationMultipleNewsOutput, ClassificationNewOutput, NewsAnalysisResponse
+from server.modules.ai.schemas import MultipleNewsInput, ClassificationMultipleNewsOutput, ClassificationNewOutput, NewsAnalysisResponse, NewsInput
 from server.config import MODEL_PATH
 import text_hammer as th
 
