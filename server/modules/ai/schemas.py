@@ -30,7 +30,7 @@ class NewsAnalysisItem(BaseModel):
         "validate_by_name": True
     }
 class NewsAnalysisInput(BaseModel):
-    news: List[NewsAnalysisItem] = Field(..., min_items=1, description="Danh sách bài viết kèm pos/neg/neu")
+    news: List[NewsAnalysisItem] = Field(..., min_length=1, description="Danh sách bài viết kèm pos/neg/neu")
 
 class NewsAnalysisResponse(BaseModel):
     analysis: str = Field(..., description="Phân tích tổng hợp (chung) từ Gemini")
