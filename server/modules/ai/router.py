@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from server.modules.ai.schemas import MultipleNewsInputSchema, ClassificationResponseSchema, NewsAnalysisResponse, NewsAnalysisInput
+from server.modules.ai.schemas import MultipleNewsInput,ClassificationMultipleNewsOutput , ClassificationNewOutput, NewsAnalysisResponse, NewsAnalysisInput, ChatBotResponse
 from server.modules.ai.service import classify_news, analyze_news
 from server.dependencies import require_auth
 from typing import List
@@ -13,24 +13,25 @@ N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
 
 router = APIRouter(prefix="/ai", tags=["AI"])
 
-@router.post("/classify_news", response_model=List[ClassificationResponseSchema],dependencies=[Depends(require_auth)])
-async def classify_news_route(news_data: MultipleNewsInputSchema):
+@router.post(
+    "/classify_news",
+    response_model=ClassificationMultipleNewsOutput,
+    dependencies=[Depends(require_auth)],
+)
+async def classify_news_route(news_data: MultipleNewsInput):
     return classify_news(news_data.news)
 
 @router.post("/analyze-news", response_model=NewsAnalysisResponse, dependencies=[Depends(require_auth)])
 async def analyze_news_route(payload: NewsAnalysisInput):
     return analyze_news(payload)
 
-@router.post("/chatbot")
-async def chatbot_route(
-    text: str,
-    access_token: str
-):
-    
+@router.post("/chatbot", response_model = ChatBotResponse, dependencies=[Depends(require_auth)])
+async def chatbot_route( text: str, request: Request):
+    access_token = request.cookies.get("access_token")
     headers = {"Authorization": f"Bearer {access_token}"}
     payload = {"text": text}
 
-    r = requests.post(N8N_WEBHOOK_URL, json=payload, headers=headers, timeout=15)
+    r = requests.post(N8N_WEBHOOK_URL, json=payload, headers=headers, timeout=100)
 
     # Chuyển tiếp status + body từ n8n (tùy bạn muốn giữ status gốc hay ép 200)
     content_type = r.headers.get("content-type", "")
