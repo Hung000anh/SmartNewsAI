@@ -1,16 +1,16 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 class NewsInput(BaseModel):
     title: str
     description: str
-    publish_date: datetime
+    publish_date: Optional[datetime] = None
 
 class ClassificationNewOutput(BaseModel):
     title: str
     description: str
-    publish_date: datetime
+    publish_date: Optional[datetime] = None
     pos: float
     neg: float
     neu: float

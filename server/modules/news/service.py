@@ -72,10 +72,23 @@ async def list_news(
         where_parts.append(f"published_time <= ${len(params)}")
 
     if q:
+        # Tìm trong title/description (partial)
         like = f"%{q}%"
         params.append(like); t_idx = len(params)
         params.append(like); d_idx = len(params)
-        where_parts.append(f"(title ILIKE ${t_idx} OR description ILIKE ${d_idx})")
+
+        # Tìm theo ID:
+        # - exact match: hữu ích khi q là số/UUID/mã chuẩn
+        # - partial match: khi q chỉ nhớ 1 phần ID (KH123, ORD-2025, ...)
+        params.append(q); id_eq_idx = len(params)
+        params.append(like); id_like_idx = len(params)
+
+        where_parts.append(
+            f"(title ILIKE ${t_idx} "
+            f"OR description ILIKE ${d_idx} "
+            f"OR CAST(id AS TEXT) = ${id_eq_idx} "
+            f"OR CAST(id AS TEXT) ILIKE ${id_like_idx})"
+        )
 
     where_sql = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
 
