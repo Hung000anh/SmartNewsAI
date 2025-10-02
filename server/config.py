@@ -6,7 +6,7 @@ MODEL_DIR = Path(os.getenv("MODEL_DIR", BASE_DIR / "models"))
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "selfcontained_logreg.joblib")
 MODEL_PATH = MODEL_DIR / DEFAULT_MODEL
 
-CERTS_DIR = os.getenv("CERTS_DIR", MODEL_DIR / "certs")
-SSL_FILE = os.getenv("CERTS_DIR", "prod-ca-2021.crt")
+CERTS_DIR = os.getenv("CERTS_DIR", BASE_DIR / "certs")
+SSL_FILE = os.getenv("SSL_FILE", CERTS_DIR / "prod-ca-2021.crt")
 
 SSL_PATH = CERTS_DIR / SSL_FILE
