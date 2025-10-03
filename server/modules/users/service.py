@@ -34,9 +34,9 @@ def signin_user(email: str, password: str, response: Response):
                 key="access_token",
                 value=token,
                 httponly=True,
-                secure=True,
-                samesite="Strict",
-                max_age=60 * 60
+                secure=True,      # dev HTTP
+                samesite="None",    # hoặc "None" nếu backend ↔ frontend khác origin hoàn toàn
+                max_age=60 * 60,
             )
 
             return user
