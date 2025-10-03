@@ -3,12 +3,13 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from dotenv import load_dotenv
 import asyncio
+from server.config import SSL_PATH
 
 load_dotenv()
-
 DATABASE_URL = os.getenv("DATABASE_URL")
-SSL_PATH = os.getenv("SSL_PATH")
 
+
+print(SSL_PATH)
 ssl_ctx = ssl.create_default_context(cafile = SSL_PATH)
 ssl_ctx.check_hostname = True
 ssl_ctx.verify_mode = ssl.CERT_REQUIRED
