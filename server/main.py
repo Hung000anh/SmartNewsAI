@@ -6,7 +6,7 @@ import os
 from fastapi.staticfiles import StaticFiles
 from server.modules.docs.router import router as docs_router
 from server.modules.health.router import router as health_router
-from server.modules.users.router import router as users_router
+from server.modules.auth.router import router as auth_router
 from server.modules.news.router import router as news_router
 from server.modules.ai.router import router as ai_router
 from version import __version__
@@ -34,7 +34,7 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 app.include_router(health_router, prefix=f"/api")
-app.include_router(users_router, prefix=f"/api")
+app.include_router(auth_router, prefix=f"/api")
 app.include_router(news_router, prefix=f"/api")
 app.include_router(docs_router, prefix=f"/api")
 app.include_router(ai_router, prefix=f"/api")

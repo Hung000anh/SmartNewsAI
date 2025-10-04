@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, Response, Request
-from server.modules.users.service import signup_user, signin_user, signout_user
-from server.modules.users.schemas import UserSignUp, UserSignIn
-from server.modules.users.service import get_info_user
+from server.modules.auth.service import signup_user, signin_user, signout_user
+from server.modules.auth.schemas import UserSignUp, UserSignIn
+from server.modules.auth.service import get_info_user
 from server.dependencies import require_auth
-router = APIRouter(prefix="/users", tags=["Users"])
+router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post(
         "/sign_up",
