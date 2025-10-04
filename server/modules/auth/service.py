@@ -12,9 +12,17 @@ SUPABASE_KEY = os.getenv("SUPABASE_API_KEY") # Use anon key for client-side ops,
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
-def signup_user(email: str, password: str):
+def signup_user(email: str, password: str, username: str):
     try:
-        user = supabase.auth.sign_up({"email": email, "password": password})
+        user = supabase.auth.sign_up({
+            "email": email, 
+            "password": password,
+            "options": {
+                "data": {
+                "full_name": username,
+                },
+            },
+            })
         print(user)
         if user.user:
             return user

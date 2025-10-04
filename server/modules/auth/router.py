@@ -10,7 +10,7 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
         summary="Sign up a new user",
 )
 async def sign_up(user: UserSignUp):
-    return signup_user(user.email, user.password)
+    return signup_user(user.email, user.password, user.username)
 
 @router.post(
     "/sign_in",
