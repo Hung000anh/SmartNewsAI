@@ -63,4 +63,13 @@ def get_info_user(request: Request):
     user_data = require_auth(request)
     return user_data
 
-    
+def signin_with_google():
+    try:
+        # Hàm này sẽ tạo URL để frontend chuyển hướng người dùng đến trang đăng nhập của Google
+        provider_response = supabase.auth.sign_in_with_oauth({
+            "provider": "google",
+            # URL redirect sẽ được lấy tự động từ cấu hình trên Supabase Dashboard
+        })
+        return provider_response
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))    
