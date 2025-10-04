@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Response, Request
-from server.modules.auth.service import signup_user, signin_user, signout_user
-from server.modules.auth.schemas import UserSignUp, UserSignIn
+from server.modules.auth.service import signup_user, signin_user, signout_user, signin_with_google
+from server.modules.auth.schemas import UserSignUp, UserSignIn, OAuthURLResponse
 from server.modules.auth.service import get_info_user
 from server.dependencies import require_auth
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -33,3 +33,12 @@ async def sign_out(response: Response):
 )
 async def get_current_user(request: Request):
     return get_info_user(request)
+
+@router.get(
+    "/google/signin",
+    summary="Get Google OAuth sign-in URL",
+    response_model=OAuthURLResponse,
+)
+async def get_google_signin_url():
+    provider_response = signin_with_google()
+    return {"url": provider_response.url}
