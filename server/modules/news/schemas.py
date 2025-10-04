@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Literal, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class NewsItemOut(BaseModel):
     id: Optional[str] = None
@@ -25,3 +25,12 @@ class NewsListResponse(BaseModel):
     items: List[NewsItemOut]
     page: PageInfo
     meta: MetaInfo
+
+class ChildSection(BaseModel):
+    label: str = Field(..., examples=["China"])
+    href: str  = Field(..., examples=["/china"])
+
+class SectionItem(BaseModel):
+    label: str = Field(..., examples=["World"])
+    href: str  = Field(..., examples=["/world"])
+    childSection: List[ChildSection] = Field(default_factory=list)    
