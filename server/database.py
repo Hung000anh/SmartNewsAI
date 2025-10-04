@@ -8,8 +8,6 @@ from server.config import SSL_PATH
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-
-print(SSL_PATH)
 ssl_ctx = ssl.create_default_context(cafile = SSL_PATH)
 ssl_ctx.check_hostname = True
 ssl_ctx.verify_mode = ssl.CERT_REQUIRED
