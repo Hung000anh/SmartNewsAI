@@ -7,6 +7,7 @@ from datetime import datetime
 class UserSignUp(BaseModel):
     email: str
     password: str
+    username: str
     
 class UserSignIn(BaseModel):
     email: str
