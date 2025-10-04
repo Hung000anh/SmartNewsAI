@@ -2,18 +2,20 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from server.database import lifespan
 import os
+
 from fastapi.staticfiles import StaticFiles
 from server.modules.docs.router import router as docs_router
 from server.modules.health.router import router as health_router
 from server.modules.users.router import router as users_router
 from server.modules.news.router import router as news_router
 from server.modules.ai.router import router as ai_router
-
+from version import __version__
+print(__version__)  # 1.0.0
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # ra ngoài app/
 STATIC_DIR = os.path.join(BASE_DIR, "server", "static")
 
-app = FastAPI(title="Supa-FastAPI", version="1.0.0", lifespan=lifespan, docs_url=None)
+app = FastAPI(title="Supa-FastAPI", version=__version__, lifespan=lifespan, docs_url=None)
 
 origins = [
     "http://localhost:3000",
@@ -31,8 +33,8 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-app.include_router(health_router, prefix="/api/v1")
-app.include_router(users_router, prefix="/api/v1")
-app.include_router(news_router, prefix="/api/v1")
-app.include_router(docs_router, prefix="/api/v1")
-app.include_router(ai_router, prefix="/api/v1")
+app.include_router(health_router, prefix=f"/api")
+app.include_router(users_router, prefix=f"/api")
+app.include_router(news_router, prefix=f"/api")
+app.include_router(docs_router, prefix=f"/api")
+app.include_router(ai_router, prefix=f"/api")
