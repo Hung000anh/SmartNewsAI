@@ -10,6 +10,7 @@ class NewsItemOut(BaseModel):
     published_time: Optional[datetime] = None 
     section: Optional[str] = None
     thumbnail: Optional[str] = None
+    view_count: Optional[int] = None
 
 class PageInfo(BaseModel):
     limit: int
@@ -18,7 +19,7 @@ class PageInfo(BaseModel):
 
 class MetaInfo(BaseModel):
     fields: Optional[List[str]] = None
-    order_by: Optional[Literal["published_time","created_time","title","section","id"]] = None
+    order_by: Optional[Literal["published_time","created_time","title","section","id","view_count"]] = None
     order_dir: Optional[Literal["ASC","DESC"]] = None
 
 class NewsListResponse(BaseModel):
