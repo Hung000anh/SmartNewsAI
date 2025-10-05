@@ -5,16 +5,16 @@ from fastapi import Request
 
 # Whitelist các cột cho phép SELECT & SORT
 ALLOWED_FIELDS = {
-    "id", "title", "url", "description", "published_time", "section", "thumbnail"
+    "id", "title", "url", "description", "published_time", "section", "thumbnail", "view_count"
 }
-ALLOWED_SORT = {"published_time", "title", "section", "id"}
+ALLOWED_SORT = {"published_time", "title", "section", "id", "view_count"}
 
 def _normalize_fields(fields: Optional[Iterable[str]]) -> List[str]:
     """
     Giữ lại những cột hợp lệ theo whitelist; nếu rỗng → trả bộ mặc định.
     """
     if not fields:
-        return ["id", "title", "url", "description", "published_time", "section", "thumbnail"]
+        return ["id", "title", "url", "description", "published_time", "section", "thumbnail", "view_count"]
     out: List[str] = []
     for f in fields:
         if not f:
