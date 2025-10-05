@@ -56,7 +56,13 @@ def signin_user(email: str, password: str, response: Response):
 
 def signout_user(response: Response):
     supabase.auth.sign_out()
-    response.delete_cookie("access_token", path="/")
+    response.delete_cookie(
+        key="access_token",
+        path="/",
+        httponly=True,
+        secure=True,
+        samesite="None"
+    )
     return {"message": "User signed out successfully."}
     
 def get_info_user(request: Request):
