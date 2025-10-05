@@ -1,6 +1,6 @@
 from typing import Optional, List, Iterable
 from datetime import datetime
-from fastapi import APIRouter, Request, Query
+from fastapi import APIRouter, Request, Query, HTTPException, status
 from server.modules.news.service import list_news
 from server.modules.news.schemas import NewsListResponse, SectionItem, ChildSection
 
@@ -81,7 +81,7 @@ async def get_news(
     offset: int = Query(0, ge=0, description="Offset"),
     # sắp xếp (whitelist trong repo)
     order_by: Optional[str] = Query(
-        "published_time", description="Order by: published_time | title | section | id"
+        "published_time", description="Order by: published_time | title | section | id | view_count"
     ),
     order_dir: Optional[str] = Query(
         "DESC", description="Sort direction: ASC | DESC"
@@ -207,3 +207,20 @@ async def get_sections_nav(request: Request):
     news_items = response_data.get("items", [])
     nav = build_sections_nav(news_items)
     return nav
+
+@router.post("/{news_id}/seen", summary="Increase view count for a news item")
+async def increase_view(news_id: str, request: Request):
+    pool = request.app.state.pool
+    sql = """
+        UPDATE news
+        SET view_count = COALESCE(view_count, 0) + 1
+        WHERE id = $1
+        RETURNING view_count;
+    """
+    async with pool.acquire() as conn:
+        new_count = await conn.fetchval(sql, news_id)
+
+    if new_count is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="News not found")
+
+    return {"id": news_id, "view_count": new_count}
