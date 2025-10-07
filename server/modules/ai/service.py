@@ -2,7 +2,7 @@ from __future__ import annotations
 from fastapi import Request
 from typing import List, Dict, Any
 from pathlib import Path
-
+from textwrap import dedent
 from joblib import load
 import numpy as np
 
@@ -106,30 +106,48 @@ from typing import List
 from fastapi import HTTPException, Request
 from dotenv import load_dotenv
 from server.modules.ai.schemas import NewsAnalysisResponse, NewsAnalysisInput
-
+import google.generativeai as genai
 load_dotenv()
 
-# Gemini SDK
-try:
-    import google.generativeai as genai
-    from google.api_core.exceptions import NotFound
-    _HAS_GENAI = True
-except Exception:
-    _HAS_GENAI = False
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
 
-SYSTEM_PROMPT_FOR_BULK_ANALYSIS = (
-    "Bạn là chuyên gia phân tích tin tức kinh tế/tài chính. "
-    "Nhiệm vụ: đọc nhiều mẩu tin (tiêu đề, mô tả, ngày xuất bản, điểm cảm xúc pos/neg/neu) "
-    "và đưa ra một bản phân tích CHUNG, cô đọng, có cấu trúc:\n"
-    "1) Bức tranh tổng quan (sentiment chủ đạo, mức độ tin cậy suy theo ngày & độ đồng nhất nội dung),\n"
-    "2) Các điểm nổi bật/đáng chú ý (bullet),\n"
-    "3) Tác động tiềm năng (cơ hội/rủi ro),\n"
-    "4) Khuyến nghị hành động ngắn gọn.\n"
-    "Giữ văn phong rõ ràng, súc tích, tránh lặp lại nội dung thô."
-)
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL")
+
+SYSTEM_PROMPT_FOR_BULK_ANALYSIS = dedent("""
+[ROLE / SYSTEM]  
+Bạn là một nhà đầu tư và chuyên gia phân tích thị trường tài chính.  
+Nhiệm vụ của bạn: đọc danh sách các tin tức (mỗi tin có title và description, có thể là tiếng Anh) và phân loại góc nhìn tâm lý của nhà giao dịch theo 3 nhóm:  
+- Positive (tin tức mang lại kỳ vọng, niềm tin, động lực đầu tư hoặc tác động tích cực đến thị trường/tài sản).  
+- Neutral (tin tức trung lập, chỉ cung cấp thông tin, chưa đủ để tác động mạnh tới tâm lý thị trường).  
+- Negative (tin tức mang lại lo ngại, rủi ro, tâm lý bi quan hoặc tác động tiêu cực đến thị trường/tài sản).  
+
+⚠️ QUAN TRỌNG: Luôn dịch và viết phần phản hồi **bằng tiếng Việt** dù tin tức gốc là tiếng Anh.  
+
+[OUTPUT FORMAT]  
+Viết theo dạng tin nhắn, trả lời tiếng Việt, có emoji và xuống dòng rõ ràng, ví dụ: 
+---
+📊 Phân tích tin tức {ten_ngữ_cảnh}:  
+
+✅ **Positive:** 
+- [Tiêu đề] - [Mô tả] - (Từ {thời_gian_đăng_bài})
+- [Tiêu đề] - [Mô tả] - (Từ {thời_gian_đăng_bài})
+- ...                                        
+⚖️ **Neutral:** 
+- [Tiêu đề] - [Mô tả] - (Từ {thời_gian_đăng_đầu})
+- [Tiêu đề] - [Mô tả] - (Từ {thời_gian_đăng_bài})
+- ...                                         
+⚠️ **Negative:** 
+- [Tiêu đề] - [Mô tả] - (Từ {thời_gian_đăng_đầu})
+- [Tiêu đề] - [Mô tả] - (Từ {thời_gian_đăng_bài})
+- ...
+📌 **Kết luận:** [Kết luận ngắn gọn tâm lý chung ]
+---
+[NOTE]  
+- Có thể rút gọn mô tả để giống tin nhắn Zalo.  
+- Tất cả đầu ra bắt buộc là tiếng Việt.  
+- Phần **Kết luận** phải khách quan, tổng hợp từ các nhóm tin, không thêm quan điểm cá nhân.
+""").strip()
 
 def _build_user_prompt(payload: NewsAnalysisInput) -> str:
     lines: List[str] = []
@@ -144,46 +162,20 @@ def _build_user_prompt(payload: NewsAnalysisInput) -> str:
         lines.append(f"Scores: pos={item.pos:.3f}, neg={item.neg:.3f}, neu={item.neu:.3f}")
     lines.append(
         "\nYêu cầu: Chỉ trả về PHÂN TÍCH CHUNG (không cần phân tích theo từng bài). "
-        "Trình bày theo 4 mục đã nêu trong system prompt."
+        "Trình bày theo nêu trong system prompt."
     )
+
     return "\n".join(lines)
 
-def _pick_available_model(preferred=("gemini-1.5-flash","gemini-1.5-pro","gemini-1.0-pro")) -> str:
-    names = [m.name for m in genai.list_models() if "generateContent" in m.supported_generation_methods]
-    short = {n.split("/")[-1] for n in names}
-    for m in preferred:
-        if m in short:
-            return m
-    # Fallback: CHỈ chọn model bắt đầu bằng gemini-
-    for n in short:
-        if n.startswith("gemini-"):
-            return n
-    # Nếu không có model gemini nào -> ném lỗi rõ ràng
-    raise HTTPException(status_code=502, detail="No Gemini model available for generateContent on this API key.")
 
 def _call_gemini(system_prompt: str, user_prompt: str) -> str:
     if not GEMINI_API_KEY:
         raise HTTPException(status_code=500, detail="Thiếu GEMINI_API_KEY trong môi trường.")
-    if not _HAS_GENAI:
-        raise HTTPException(status_code=500, detail="Thiếu thư viện google-generativeai. Cài: pip install google-generativeai")
 
     genai.configure(api_key=GEMINI_API_KEY)
-    model_name = GEMINI_MODEL or _pick_available_model()
+    model_name = GEMINI_MODEL
     model = genai.GenerativeModel(model_name=model_name, system_instruction=system_prompt)
-
-    try:
-        resp = model.generate_content(user_prompt)
-    except NotFound as e:
-        # Fallback thử model khác nếu model_name không tồn tại
-        alt = _pick_available_model()
-        if alt != model_name:
-            model = genai.GenerativeModel(model_name=alt, system_instruction=system_prompt)
-            resp = model.generate_content(user_prompt)
-        else:
-            raise HTTPException(status_code=502, detail=f"Gemini model '{model_name}' not found.") from e
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Gemini error: {str(e)}") from e
-
+    resp = model.generate_content(user_prompt)
     text = getattr(resp, "text", None)
     if not text:
         try:
@@ -195,7 +187,6 @@ def _call_gemini(system_prompt: str, user_prompt: str) -> str:
     return text
 
 def analyze_news(payload: NewsAnalysisInput) -> NewsAnalysisResponse:
-
     user_prompt = _build_user_prompt(payload)
     analysis = _call_gemini(SYSTEM_PROMPT_FOR_BULK_ANALYSIS, user_prompt)
     return NewsAnalysisResponse(analysis=analysis)
