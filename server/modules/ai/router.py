@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from server.modules.ai.schemas import ChatBotInput, MultipleNewsInput,ClassificationMultipleNewsOutput , ClassificationNewOutput, NewsAnalysisResponse, NewsAnalysisInput, ChatBotResponse
-from server.modules.ai.service import classify_news, analyze_news
+from server.modules.ai.service import classify_news, analyze_news, get_chat_history
 from server.dependencies import require_auth
 from typing import List
 from dotenv import load_dotenv
@@ -26,6 +26,16 @@ async def classify_news_route(news_data: MultipleNewsInput):
 @router.post("/analyze-news", response_model=NewsAnalysisResponse, dependencies=[Depends(require_auth)])
 async def analyze_news_route(payload: NewsAnalysisInput):
     return analyze_news(payload)
+
+@router.get("/chat-history/{session_id}", dependencies=[Depends(require_auth)])
+async def get_user_chat_history(
+    request: Request,
+    session_id: str,
+    limit: int = 100,
+    offset: int = 0,
+):
+    return await get_chat_history(request, session_id, limit, offset)
+
 
 @router.post("/chatbot", response_model=ChatBotResponse, dependencies=[Depends(require_auth)])
 async def chatbot_route(payload: ChatBotInput, request: Request):
