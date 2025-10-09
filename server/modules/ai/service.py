@@ -5,7 +5,7 @@ from pathlib import Path
 from textwrap import dedent
 from joblib import load
 import numpy as np
-
+import json
 from server.modules.ai.schemas import MultipleNewsInput, ClassificationMultipleNewsOutput, ClassificationNewOutput, NewsAnalysisResponse, NewsInput
 from server.config import MODEL_PATH
 import text_hammer as th
@@ -190,3 +190,48 @@ def analyze_news(payload: NewsAnalysisInput) -> NewsAnalysisResponse:
     user_prompt = _build_user_prompt(payload)
     analysis = _call_gemini(SYSTEM_PROMPT_FOR_BULK_ANALYSIS, user_prompt)
     return NewsAnalysisResponse(analysis=analysis)
+
+
+async def get_chat_history(
+    request: Request,
+    session_id: str,
+    limit: int = 100,
+    offset: int = 0,
+):
+    pool = request.app.state.pool
+
+    sql = """
+        SELECT 
+            id,
+            session_id,
+            message
+        FROM n8n_chat_histories
+        WHERE session_id = $1
+        ORDER BY id ASC
+        LIMIT $2 OFFSET $3
+    """
+
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(sql, session_id, limit, offset)
+
+    items = []
+    for r in rows:
+        msg = r["message"]
+        # Nếu message bị lưu dưới dạng string JSON, parse lại
+        if isinstance(msg, str):
+            try:
+                msg = json.loads(msg)
+            except json.JSONDecodeError:
+                pass
+
+        items.append({
+            "id": r["id"],
+            "session_id": r["session_id"],
+            "message": msg,
+        })
+
+    return {
+        "session_id": session_id,
+        "items": items,
+        "page": {"limit": limit, "offset": offset, "total": len(items)},
+    }
