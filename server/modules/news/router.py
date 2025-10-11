@@ -1,8 +1,8 @@
 from typing import Optional, List, Iterable
 from datetime import datetime
 from fastapi import APIRouter, Request, Query, HTTPException, status
-from server.modules.news.service import list_news
-from server.modules.news.schemas import NewsListResponse, SectionItem, ChildSection
+from server.modules.news.service import list_news, get_news_by_id
+from server.modules.news.schemas import NewsListResponse, SectionItem, ChildSection, NewsDetailItemOut
 
 router = APIRouter(prefix="/news", tags=["News"])
 
@@ -224,3 +224,29 @@ async def increase_view(news_id: str, request: Request):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="News not found")
 
     return {"id": news_id, "view_count": new_count}
+
+"""
+Author: Thắng
+"""
+
+@router.get(
+    "/{news_id}",
+    summary="Get detailed information for a news item",
+    response_model=NewsDetailItemOut,
+)
+async def get_news_detail(news_id: str, request: Request):
+    try:
+        news = await get_news_by_id(request, news_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal error: {str(e)}"
+        )
+
+    if not news:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="News not found"
+        )
+
+    return news
