@@ -119,3 +119,23 @@ async def list_news(
         "page": {"limit": limit, "offset": offset, "total": total},
         "meta": {"fields": select_cols, "order_by": sort_col, "order_dir": sort_dir},
     }
+
+async def get_news_by_id(request: Request, news_id: str):
+    pool = request.app.state.pool
+    sql = """
+        SELECT 
+            id,
+            title,
+            description,
+            article,
+            section,
+            published_time,
+            view_count
+        FROM news
+        WHERE id = $1
+        LIMIT 1;
+    """
+    async with pool.acquire() as conn:
+        row = await conn.fetchrow(sql, news_id)
+
+    return dict(row) if row else None

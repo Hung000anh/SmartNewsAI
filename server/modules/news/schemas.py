@@ -35,3 +35,18 @@ class SectionItem(BaseModel):
     label: str = Field(..., examples=["World"])
     href: str  = Field(..., examples=["/world"])
     childSection: List[ChildSection] = Field(default_factory=list)    
+
+"""
+Author: Thắng
+"""
+
+class NewsDetailItemOut(BaseModel):
+    id: Optional[str] = None
+    title: Optional[str] = None
+    url: Optional[str] = None
+    description: Optional[str] = None
+    published_time: Optional[datetime] = None 
+    section: Optional[str] = None
+    thumbnail: Optional[str] = None
+    view_count: Optional[int] = None
+    article: Optional[str] = None
