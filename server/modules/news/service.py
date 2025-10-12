@@ -71,8 +71,8 @@ async def list_news(
 
     if sections:
         normalized_sections = [normalize_section(s) for s in sections if s]
-        print(">>> Original sections:", sections)
-        print(">>> Normalized sections:", normalized_sections)
+        # print(">>> Original sections:", sections)
+        # print(">>> Normalized sections:", normalized_sections)
 
         # Chỉ dùng section đầu tiên (hoặc bạn có thể loop từng section nếu cần)
         sec = normalized_sections[0]
@@ -88,19 +88,19 @@ async def list_news(
             )
         """)
 
-        # ⚡ In debug SQL
-        debug_sql = f"""
-            SELECT *
-            FROM news
-            WHERE regexp_replace(
-                lower(replace(section, '&', 'and')),
-                '[^a-z0-9/]', '', 'g'
-            ) = regexp_replace(
-                lower(replace('{sec}', '&', 'and')),
-                '[^a-z0-9/]', '', 'g'
-            );
-        """
-        print(">>> DEBUG SQL:\n", debug_sql)
+        # # ⚡ In debug SQL
+        # debug_sql = f"""
+        #     SELECT *
+        #     FROM news
+        #     WHERE regexp_replace(
+        #         lower(replace(section, '&', 'and')),
+        #         '[^a-z0-9/]', '', 'g'
+        #     ) = regexp_replace(
+        #         lower(replace('{sec}', '&', 'and')),
+        #         '[^a-z0-9/]', '', 'g'
+        #     );
+        # """
+        # print(">>> DEBUG SQL:\n", debug_sql)
 
     if date_from:
         params.append(date_from)

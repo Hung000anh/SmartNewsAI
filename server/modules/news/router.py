@@ -94,7 +94,7 @@ async def get_news(
     # Parse and normalize query params
     field_list = _parse_fields_csv(fields)
     section_list_norm = _normalize_sections(sections)
-    print(section_list_norm)
+    # print(section_list_norm)
     order_dir_norm = (order_dir or "DESC").upper()
     if order_dir_norm not in ("ASC", "DESC"):
         order_dir_norm = "DESC"
