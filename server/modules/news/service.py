@@ -2,7 +2,7 @@
 from typing import Iterable, Optional, List, Tuple
 from datetime import datetime
 from fastapi import Request
-
+import re
 # Whitelist các cột cho phép SELECT & SORT
 ALLOWED_FIELDS = {
     "id", "title", "url", "description", "published_time", "section", "thumbnail", "view_count"
@@ -59,9 +59,19 @@ async def list_news(
     params: List[object] = []
 
     if sections:
-        # so khớp chính xác theo lowercase
-        params.append(sections)  # asyncpg bind -> text[]
-        where_parts.append(f"LOWER(section) = ANY(${len(params)})")
+        # Chuẩn hóa: bỏ hết ký tự đặc biệt, chỉ giữ chữ và số
+        normalized_sections = []
+        for s in sections:
+            if not s:
+                continue
+            clean = re.sub(r'[^a-zA-Z0-9]', '', s).lower()
+            normalized_sections.append(clean)
+
+        params.append(normalized_sections)
+        where_parts.append(
+            f"regexp_replace(LOWER(section), '[^a-z0-9]', '', 'g') = ANY(${len(params)})"
+        )
+
 
     if date_from:
         params.append(date_from)
