@@ -53,54 +53,48 @@ def _normalize_sections(sections: Optional[Iterable[str]]) -> Optional[List[str]
 )
 async def get_news(
     request: Request,
-    # chọn cột trả về: ?fields=id,title,section
     fields: Optional[str] = Query(
         None,
         description="Comma-separated fields, e.g. id,title,section",
         examples={"only_basic": {"value": "id,title,published_time"}},
     ),
-    # nhiều section qua CSV: ?sections=technology,science
     sections: Optional[str] = Query(
         None,
         description="CSV of sections (case-insensitive), e.g. technology,science",
         examples={"multi": {"value": "technology,science"}},
     ),
-    # thời gian: ISO 8601, ví dụ 2025-09-01T00:00:00Z
     date_from: Optional[datetime] = Query(
         None, description="Published after (ISO 8601), e.g. 2025-09-01T00:00:00Z"
     ),
     date_to: Optional[datetime] = Query(
         None, description="Published before (ISO 8601)"
     ),
-    # tìm kiếm đơn giản: ?q=apple
     q: Optional[str] = Query(
         None, description="Search keyword (title/description, ILIKE)"
     ),
-    # phân trang
     limit: int = Query(20, ge=1, le=1000, description="Page size"),
     offset: int = Query(0, ge=0, description="Offset"),
-    # sắp xếp (whitelist trong repo)
     order_by: Optional[str] = Query(
-        "published_time", description="Order by: published_time | title | section | id | view_count"
+        "published_time",
+        description="Order by: published_time | title | section | id | view_count",
     ),
     order_dir: Optional[str] = Query(
         "DESC", description="Sort direction: ASC | DESC"
     ),
 ):
+    # Parse and normalize query params
     field_list = _parse_fields_csv(fields)
-
-    # CSV -> list -> normalize (lowercase, dedup)
     section_list_raw = _parse_sections_csv(sections)
-    section_list_norm = _normalize_sections(section_list_raw)  # Optional[List[str]]
-
+    section_list_norm = _normalize_sections(section_list_raw)
     order_dir_norm = (order_dir or "DESC").upper()
     if order_dir_norm not in ("ASC", "DESC"):
         order_dir_norm = "DESC"
 
-    return await list_news(
+    # --- Lấy dữ liệu từ service ---
+    data = await list_news(
         request=request,
         fields=field_list,
-        sections=section_list_norm,   # <-- truyền List[str] đã normalize
+        sections=section_list_norm,
         date_from=date_from,
         date_to=date_to,
         q=q.strip() if q else None,
@@ -109,6 +103,19 @@ async def get_news(
         order_by=order_by,
         order_dir=order_dir_norm,
     )
+
+    # --- Tự động sinh slug từ URL ---
+    items = data.get("items", [])
+    for item in items:
+        url = item.get("url")
+        if url:
+            # Lấy phần path sau domain
+            path = url.split("://")[-1].split("/", 1)[-1].strip("/")
+            item["slug"] = path  # chứa cả section + slug cuối
+        else:
+            item["slug"] = None
+
+    return data
 
 from typing import List, Dict, Any, Union
 import re
@@ -248,5 +255,13 @@ async def get_news_detail(news_id: str, request: Request):
             status_code=status.HTTP_404_NOT_FOUND,
             detail="News not found"
         )
+    
+    # --- Tự động sinh slug từ URL ---
+    url = news.get("url")
+    if url:
+        path = url.split("://")[-1].split("/", 1)[-1].strip("/")
+        news["slug"] = path  # chứa cả section + slug cuối
+    else:
+        news["slug"] = None
 
     return news
