@@ -237,30 +237,57 @@ Author: Thắng
 """
 
 @router.get(
-    "/{news_id}",
-    summary="Get detailed information for a news item",
+    "/{slug:path}",
+    summary="Get detailed information for a news item by full URL slug",
     response_model=NewsDetailItemOut,
 )
-async def get_news_detail(news_id: str, request: Request):
+async def get_news_detail(slug: str, request: Request):
+    pool = request.app.state.pool
+
+    # Làm sạch slug, bỏ domain nếu người dùng dán full URL
+    normalized_slug = slug.strip("/")
+    if "://" in normalized_slug:
+        normalized_slug = normalized_slug.split("://", 1)[-1].split("/", 1)[-1]
+    normalized_slug = normalized_slug.strip("/")
+
+    # Truy vấn bài viết có URL gần giống slug
+    sql = """
+        SELECT 
+            id,
+            title,
+            description,
+            article,
+            section,
+            published_time,
+            view_count,
+            url
+        FROM news
+        WHERE url ILIKE '%' || $1 || '%'
+        ORDER BY published_time DESC
+        LIMIT 1;
+    """
+
     try:
-        news = await get_news_by_id(request, news_id)
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(sql, normalized_slug)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal error: {str(e)}"
+            detail=f"Database error: {str(e)}"
         )
 
-    if not news:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="News not found"
-        )
-    
-    # --- Tự động sinh slug từ URL ---
+    if not row:
+        raise HTTPException(status_code=404, detail="News not found")
+
+    news = dict(row)
+
+    # --- Sinh slug duy nhất từ URL (gồm cả section cha + con + slug cuối) ---
     url = news.get("url")
     if url:
+        # Lấy phần path sau domain, ví dụ:
+        # "business/healthcare-pharmaceuticals/covid-19-vaccine-patents-dominate-global-trade-talks-2021-05-05"
         path = url.split("://")[-1].split("/", 1)[-1].strip("/")
-        news["slug"] = path  # chứa cả section + slug cuối
+        news["slug"] = path
     else:
         news["slug"] = None
 
