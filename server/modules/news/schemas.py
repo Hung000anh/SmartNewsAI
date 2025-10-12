@@ -11,6 +11,7 @@ class NewsItemOut(BaseModel):
     section: Optional[str] = None
     thumbnail: Optional[str] = None
     view_count: Optional[int] = None
+    slug: Optional[str] = None
 
 class PageInfo(BaseModel):
     limit: int
@@ -50,3 +51,4 @@ class NewsDetailItemOut(BaseModel):
     thumbnail: Optional[str] = None
     view_count: Optional[int] = None
     article: Optional[str] = None
+    slug: Optional[str] = None

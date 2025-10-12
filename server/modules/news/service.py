@@ -126,6 +126,7 @@ async def get_news_by_id(request: Request, news_id: str):
         SELECT 
             id,
             title,
+            url,
             description,
             article,
             section,
