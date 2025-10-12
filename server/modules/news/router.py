@@ -109,9 +109,8 @@ async def get_news(
     for item in items:
         url = item.get("url")
         if url:
-            # Lấy phần path sau domain
-            path = url.split("://")[-1].split("/", 1)[-1].strip("/")
-            item["slug"] = path  # chứa cả section + slug cuối
+            parts = url.rstrip("/").split("/")
+            item["slug"] = parts[-1] if parts else None
         else:
             item["slug"] = None
 
@@ -282,13 +281,12 @@ async def get_news_detail(slug: str, request: Request):
 
     news = dict(row)
 
-    # --- Sinh slug duy nhất từ URL (gồm cả section cha + con + slug cuối) ---
+    # --- Chỉ lấy phần slug cuối cùng từ URL ---
     url = news.get("url")
     if url:
-        # Lấy phần path sau domain, ví dụ:
-        # "business/healthcare-pharmaceuticals/covid-19-vaccine-patents-dominate-global-trade-talks-2021-05-05"
-        path = url.split("://")[-1].split("/", 1)[-1].strip("/")
-        news["slug"] = path
+        # Tách phần cuối cùng sau dấu "/"
+        slug_last = url.rstrip("/").split("/")[-1]
+        news["slug"] = slug_last
     else:
         news["slug"] = None
 
