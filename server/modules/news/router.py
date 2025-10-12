@@ -3,7 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Request, Query, HTTPException, status
 from server.modules.news.service import list_news, get_news_by_id
 from server.modules.news.schemas import NewsListResponse, SectionItem, ChildSection, NewsDetailItemOut
-
+from urllib.parse import unquote
 router = APIRouter(prefix="/news", tags=["News"])
 
 def _parse_fields_csv(raw: Optional[str]) -> Optional[List[str]]:
@@ -18,33 +18,42 @@ def _parse_fields_csv(raw: Optional[str]) -> Optional[List[str]]:
             out.append(v)
     return out or None
 
-def _parse_sections_csv(raw: Optional[str]) -> Optional[List[str]]:
-    """CSV -> List[str], giữ nguyên thứ tự, bỏ rỗng."""
-    if not raw:
-        return None
-    seen = set()
-    out: List[str] = []
-    for s in raw.split(","):
-        v = s.strip()
-        if v and v not in seen:
-            seen.add(v)
-            out.append(v)
-    return out or None
+# def _parse_sections_csv(raw: Optional[str]) -> Optional[List[str]]:
+#     """CSV -> List[str], giữ nguyên thứ tự, bỏ rỗng."""
+#     if not raw:
+#         return None
+#     seen = set()
+#     out: List[str] = []
+#     for s in raw.split(","):
+#         v = s.strip()
+#         if v and v not in seen:
+#             seen.add(v)
+#             out.append(v)
+#     return out or None
 
-def _normalize_sections(sections: Optional[Iterable[str]]) -> Optional[List[str]]:
-    """lowercase + trim + dedup (giữ thứ tự)."""
+def _normalize_sections(sections):
+    """
+    Chuẩn hoá section:
+    - Cho phép đầu vào là str hoặc list[str]
+    - Giải mã URL (%2F → /)
+    - Thay '/' bằng ' / ' để dễ đọc
+    """
     if not sections:
         return None
-    seen = set()
-    out: List[str] = []
+
+    # Nếu đầu vào là chuỗi đơn, chuyển thành list có 1 phần tử
+    if isinstance(sections, str):
+        sections = [sections]
+
+    normalized = []
     for s in sections:
         if not s:
             continue
-        k = s.strip().lower()
-        if k and k not in seen:
-            seen.add(k)
-            out.append(k)
-    return out or None
+        decoded = unquote(s.strip())  # decode %2F, %20, ...
+        formatted = decoded.strip("/").replace("/", " / ")
+        normalized.append(formatted)
+    return normalized or None
+
 
 @router.get(
     "/",
@@ -84,8 +93,8 @@ async def get_news(
 ):
     # Parse and normalize query params
     field_list = _parse_fields_csv(fields)
-    section_list_raw = _parse_sections_csv(sections)
-    section_list_norm = _normalize_sections(section_list_raw)
+    section_list_norm = _normalize_sections(sections)
+    print(section_list_norm)
     order_dir_norm = (order_dir or "DESC").upper()
     if order_dir_norm not in ("ASC", "DESC"):
         order_dir_norm = "DESC"
@@ -212,6 +221,8 @@ async def get_sections_nav(request: Request):
     # list_news returns a dict {'items': [...]}, pass the items list to build_sections_nav
     news_items = response_data.get("items", [])
     nav = build_sections_nav(news_items)
+
+    print(nav)
     return nav
 
 @router.post("/{news_id}/seen", summary="Increase view count for a news item")
