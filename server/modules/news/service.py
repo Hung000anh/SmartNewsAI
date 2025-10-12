@@ -31,6 +31,17 @@ def _normalize_sort(order_by: Optional[str], order_dir: Optional[str]) -> Tuple[
         dir_ = "DESC"
     return col, dir_
 
+def normalize_section(section: str) -> str:
+    if not section:
+        return ""
+    s = section.strip().lower()
+    s = s.replace("&", "and")
+    s = s.replace("-", " ")           # ✅ thêm bước này
+    s = re.sub(r"[,]", " ", s)       # thay dấu phẩy bằng khoảng trắng
+    s = re.sub(r"\s+", " ", s)       # xóa khoảng trắng thừa
+    s = s.replace("/", " / ")         # thêm khoảng trắng quanh /
+    s = re.sub(r"\s+/+\s+", " / ", s)  # đảm bảo chỉ 1 khoảng trắng xung quanh /
+    return s.strip()
 
 async def list_news(
     request: Request,
@@ -59,19 +70,37 @@ async def list_news(
     params: List[object] = []
 
     if sections:
-        # Chuẩn hóa: bỏ hết ký tự đặc biệt, chỉ giữ chữ và số
-        normalized_sections = []
-        for s in sections:
-            if not s:
-                continue
-            clean = re.sub(r'[^a-zA-Z0-9]', '', s).lower()
-            normalized_sections.append(clean)
+        normalized_sections = [normalize_section(s) for s in sections if s]
+        print(">>> Original sections:", sections)
+        print(">>> Normalized sections:", normalized_sections)
 
-        params.append(normalized_sections)
-        where_parts.append(
-            f"regexp_replace(LOWER(section), '[^a-z0-9]', '', 'g') = ANY(${len(params)})"
-        )
+        # Chỉ dùng section đầu tiên (hoặc bạn có thể loop từng section nếu cần)
+        sec = normalized_sections[0]
+        params.append(sec)
 
+        where_parts.append(f"""
+            regexp_replace(
+                lower(replace(section, '&', 'and')),
+                '[^a-z0-9/]', '', 'g'
+            ) = regexp_replace(
+                lower(replace(${len(params)}, '&', 'and')),
+                '[^a-z0-9/]', '', 'g'
+            )
+        """)
+
+        # ⚡ In debug SQL
+        debug_sql = f"""
+            SELECT *
+            FROM news
+            WHERE regexp_replace(
+                lower(replace(section, '&', 'and')),
+                '[^a-z0-9/]', '', 'g'
+            ) = regexp_replace(
+                lower(replace('{sec}', '&', 'and')),
+                '[^a-z0-9/]', '', 'g'
+            );
+        """
+        print(">>> DEBUG SQL:\n", debug_sql)
 
     if date_from:
         params.append(date_from)
