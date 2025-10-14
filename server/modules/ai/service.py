@@ -107,12 +107,13 @@ from fastapi import HTTPException, Request
 from dotenv import load_dotenv
 from server.modules.ai.schemas import NewsAnalysisResponse, NewsAnalysisInput
 import google.generativeai as genai
+from openai import OpenAI
 load_dotenv()
 
 
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL   = os.getenv("GEMINI_MODEL")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL   = os.getenv("OPENAI_MODEL", "gpt-5-nano")
 
 SYSTEM_PROMPT_FOR_BULK_ANALYSIS = dedent("""
 [ROLE / SYSTEM]  
@@ -131,15 +132,9 @@ Viết theo dạng tin nhắn, trả lời tiếng Việt, có emoji và xuống
 
 ✅ **Positive:** 
 - [Tiêu đề] - [Mô tả] - (Từ {thời_gian_đăng_bài})
-- [Tiêu đề] - [Mô tả] - (Từ {thời_gian_đăng_bài})
-- ...                                        
 ⚖️ **Neutral:** 
-- [Tiêu đề] - [Mô tả] - (Từ {thời_gian_đăng_đầu})
-- [Tiêu đề] - [Mô tả] - (Từ {thời_gian_đăng_bài})
-- ...                                         
+- ...
 ⚠️ **Negative:** 
-- [Tiêu đề] - [Mô tả] - (Từ {thời_gian_đăng_đầu})
-- [Tiêu đề] - [Mô tả] - (Từ {thời_gian_đăng_bài})
 - ...
 📌 **Kết luận:** [Kết luận ngắn gọn tâm lý chung ]
 ---
@@ -149,14 +144,14 @@ Viết theo dạng tin nhắn, trả lời tiếng Việt, có emoji và xuống
 - Phần **Kết luận** phải khách quan, tổng hợp từ các nhóm tin, không thêm quan điểm cá nhân.
 """).strip()
 
-def _build_user_prompt(payload: NewsAnalysisInput) -> str:
+
+def _build_user_prompt(payload):
     lines: List[str] = []
     lines.append("Dữ liệu đầu vào gồm nhiều bài:")
     for i, item in enumerate(payload.news):
         lines.append(f"\n--- Bài #{i} ---")
         lines.append(f"Title: {item.title}")
         lines.append(f"Description: {item.description}")
-        # THỐNG NHẤT field là publish_date
         if getattr(item, "publish_date", None):
             lines.append(f"Publish Date: {item.publish_date}")
         lines.append(f"Scores: pos={item.pos:.3f}, neg={item.neg:.3f}, neu={item.neu:.3f}")
@@ -164,32 +159,32 @@ def _build_user_prompt(payload: NewsAnalysisInput) -> str:
         "\nYêu cầu: Chỉ trả về PHÂN TÍCH CHUNG (không cần phân tích theo từng bài). "
         "Trình bày theo nêu trong system prompt."
     )
-
     return "\n".join(lines)
 
 
-def _call_gemini(system_prompt: str, user_prompt: str) -> str:
-    if not GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="Thiếu GEMINI_API_KEY trong môi trường.")
-
-    genai.configure(api_key=GEMINI_API_KEY)
-    model_name = GEMINI_MODEL
-    model = genai.GenerativeModel(model_name=model_name, system_instruction=system_prompt)
-    resp = model.generate_content(user_prompt)
-    text = getattr(resp, "text", None)
+def _call_chatgpt(system_prompt: str, user_prompt: str) -> str:
+    if not OPENAI_API_KEY:
+        raise HTTPException(status_code=500, detail="Thiếu OPENAI_API_KEY trong môi trường.")
+    
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    resp = client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+    )
+    
+    text = resp.choices[0].message.content.strip()
     if not text:
-        try:
-            text = resp.candidates[0].content.parts[0].text
-        except Exception:
-            text = ""
-    if not text:
-        raise HTTPException(status_code=502, detail="Gemini không trả về nội dung hợp lệ.")
+        raise HTTPException(status_code=502, detail="ChatGPT không trả về nội dung hợp lệ.")
     return text
 
-def analyze_news(payload: NewsAnalysisInput) -> NewsAnalysisResponse:
+
+def analyze_news(payload):
     user_prompt = _build_user_prompt(payload)
-    analysis = _call_gemini(SYSTEM_PROMPT_FOR_BULK_ANALYSIS, user_prompt)
-    return NewsAnalysisResponse(analysis=analysis)
+    analysis = _call_chatgpt(SYSTEM_PROMPT_FOR_BULK_ANALYSIS, user_prompt)
+    return {"analysis": analysis}
 
 
 async def get_chat_history(
