@@ -50,3 +50,14 @@ class ChatBotResponse(BaseModel):
     ok: str = Field(..., description="Trạng thái chat bot")
     code: str = Field(..., description="Code n8n chat bot")
     message: str = Field(..., description="Phản hồi chat bot")
+
+class NewsItemOut(BaseModel):
+    title: str
+    description: str
+    publish_date: Optional[datetime] = None
+    pos: float = Field(..., ge=0.0, le=1.0)
+    neg: float = Field(..., ge=0.0, le=1.0)
+    neu: float = Field(..., ge=0.0, le=1.0)
+
+class NewsFetchOutput(BaseModel):
+    news: list[NewsItemOut]
