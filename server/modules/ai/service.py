@@ -7,9 +7,30 @@ from joblib import load
 import numpy as np
 import json
 from server.modules.ai.schemas import MultipleNewsInput, ClassificationMultipleNewsOutput, ClassificationNewOutput, NewsAnalysisResponse, NewsInput
-from server.config import MODEL_PATH
+from server.config import TOKENIZER_PATH, MODEL_PATH
 import text_hammer as th
+from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Layer
+from tensorflow.keras.models import load_model
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+import pickle
 
+class Attention(Layer):
+    def __init__(self, **kwargs):
+        super(Attention, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        self.W = self.add_weight(name="att_weight", shape=(input_shape[-1], 1),
+                                 initializer="normal")
+        self.b = self.add_weight(name="att_bias", shape=(input_shape[1], 1),
+                                 initializer="zeros")
+        super(Attention, self).build(input_shape)
+
+    def call(self, x):
+        e = K.tanh(K.dot(x, self.W) + self.b)
+        a = K.softmax(e, axis=1)
+        output = x * a
+        return K.sum(output, axis=1)
 
 # ===================== Preprocessing =====================
 def text_preprocessing(text: str) -> str:
@@ -26,9 +47,27 @@ def text_preprocessing(text: str) -> str:
     return text.strip()
 
 
-# ===================== Model (cached) =====================
+MAX_LEN = 81
+
 _MODEL = None
-_CLASSES = None  # will hold np.ndarray like [0,1,2]
+_TOKENIZER = None
+
+def _get_model_and_tokenizer():
+    """Cache model và tokenizer."""
+    global _MODEL, _TOKENIZER
+
+    if _TOKENIZER is None:
+        if not TOKENIZER_PATH.exists():
+            raise FileNotFoundError(f"Tokenizer not found: {TOKENIZER_PATH}")
+        with open(TOKENIZER_PATH, "rb") as f:
+            _TOKENIZER = pickle.load(f)
+
+    if _MODEL is None:
+        if not MODEL_PATH.exists():
+            raise FileNotFoundError(f"Model not found: {MODEL_PATH}")
+        _MODEL = load_model(MODEL_PATH, custom_objects={"Attention": Attention})
+
+    return _MODEL, _TOKENIZER
 
 def _get_model():
     global _MODEL, _CLASSES
@@ -45,55 +84,51 @@ def _get_model():
     return _MODEL
 
 
-# ===================== Inference helpers =====================
-def predict_sentiment(pipe, text: str, preprocess_fn=None) -> Dict[str, Any]:
-    """Trả về processed_text, proba theo lớp gốc, và nhãn dự đoán."""
-    processed_text = preprocess_fn(text) if preprocess_fn else text
-    proba = pipe.predict_proba([processed_text])[0]  # shape (n_classes,)
-    classes = getattr(pipe, "classes_", range(len(proba)))
-    proba_dict = {int(k): float(v) for k, v in zip(classes, proba)}
-    label = pipe.predict([processed_text])[0]
-    return {
-        "processed_text": processed_text,
-        "proba": proba_dict,
-        "label": label,
-    }
+def _predict_sentiment_keras(model, tokenizer, text_list: List[str]):
+    """Trả về list dict [{pos, neg, neu}, ...]"""
+    from tensorflow.keras.preprocessing.text import Tokenizer
+
+    if not text_list:
+        return []
+
+    # Encode
+    seq = tokenizer.texts_to_sequences(text_list)
+    X_pad = pad_sequences(seq, maxlen=MAX_LEN, padding="post")
+
+    # Predict
+    preds = model.predict(X_pad, verbose=0)  # (n_samples, 3)
+
+    results = []
+    for p in preds:
+        pos, neg, neu = map(float, p)
+        s = pos + neg + neu
+        if s > 0:
+            pos, neg, neu = pos / s, neg / s, neu / s
+        results.append({"pos": pos, "neg": neg, "neu": neu})
+
+    return results
 
 
-def _map_012_to_pos_neg_neu(proba_by_class: Dict[int, float]) -> Dict[str, float]:
-
-    neg = float(proba_by_class.get(0, 0.0))
-    neu = float(proba_by_class.get(1, 0.0))
-    pos = float(proba_by_class.get(2, 0.0))
-
-    # đảm bảo tổng ~ 1.0 (trong trường hợp model/proba rounding)
-    s = neg + neu + pos
-    if s > 0:
-        neg, neu, pos = neg / s, neu / s, pos / s
-
-    return {"pos": pos, "neg": neg, "neu": neu}
-
-
-# ===================== Main service =====================
 def classify_news(news_data: List[NewsInput]) -> ClassificationMultipleNewsOutput:
-    model = _get_model()
+    model, tokenizer = _get_model_and_tokenizer()
+
+    texts = [
+        text_preprocessing(f"{n.title or ''} {n.description or ''}".strip())
+        for n in news_data
+    ]
+
+    predictions = _predict_sentiment_keras(model, tokenizer, texts)
+
     results: List[ClassificationNewOutput] = []
-
-    for news in news_data:
-        title = news.title or ""
-        description = news.description or ""
-        publish_date = news.publish_date
-
-        text = f"{title} {description}".strip()
-        pred = predict_sentiment(model, text, preprocess_fn=text_preprocessing)
-        mapped = _map_012_to_pos_neg_neu(pred["proba"])
-
+    for news, pred in zip(news_data, predictions):
         results.append(
             ClassificationNewOutput(
-                title=title,
-                description=description,
-                publish_date=publish_date,
-                **mapped,
+                title=news.title or "",
+                description=news.description or "",
+                publish_date=news.publish_date,
+                pos=pred["pos"],
+                neg=pred["neg"],
+                neu=pred["neu"],
             )
         )
 
