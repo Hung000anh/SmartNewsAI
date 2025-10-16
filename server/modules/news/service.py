@@ -82,25 +82,11 @@ async def list_news(
             regexp_replace(
                 lower(replace(section, '&', 'and')),
                 '[^a-z0-9/]', '', 'g'
-            ) = regexp_replace(
+            ) ILIKE '%' || regexp_replace(
                 lower(replace(${len(params)}, '&', 'and')),
                 '[^a-z0-9/]', '', 'g'
-            )
+            ) || '%'
         """)
-
-        # # ⚡ In debug SQL
-        # debug_sql = f"""
-        #     SELECT *
-        #     FROM news
-        #     WHERE regexp_replace(
-        #         lower(replace(section, '&', 'and')),
-        #         '[^a-z0-9/]', '', 'g'
-        #     ) = regexp_replace(
-        #         lower(replace('{sec}', '&', 'and')),
-        #         '[^a-z0-9/]', '', 'g'
-        #     );
-        # """
-        # print(">>> DEBUG SQL:\n", debug_sql)
 
     if date_from:
         params.append(date_from)
@@ -111,24 +97,22 @@ async def list_news(
         where_parts.append(f"published_time <= ${len(params)}")
 
     if q:
-        # Tìm trong title/description (partial)
-        like = f"%{q}%"
-        params.append(like); t_idx = len(params)
-        params.append(like); d_idx = len(params)
+        keywords = q.split()
+        where_like_parts = []
+        for word in keywords:
+            like = f"%{word}%"
+            params.append(like); t_idx = len(params)
+            params.append(like); d_idx = len(params)
+            params.append(like); id_idx = len(params)
 
-        # Tìm theo ID:
-        # - exact match: hữu ích khi q là số/UUID/mã chuẩn
-        # - partial match: khi q chỉ nhớ 1 phần ID (KH123, ORD-2025, ...)
-        params.append(q); id_eq_idx = len(params)
-        params.append(like); id_like_idx = len(params)
+            where_like_parts.append(
+                f"(title ILIKE ${t_idx} OR description ILIKE ${d_idx} OR CAST(id AS TEXT) ILIKE ${id_idx})"
+            )
 
-        where_parts.append(
-            f"(title ILIKE ${t_idx} "
-            f"OR description ILIKE ${d_idx} "
-            f"OR CAST(id AS TEXT) = ${id_eq_idx} "
-            f"OR CAST(id AS TEXT) ILIKE ${id_like_idx})"
-        )
+        # ✅ Bắt buộc chứa tất cả từ khóa
+        where_parts.append("(" + " AND ".join(where_like_parts) + ")")
 
+    # ✅ Ghép WHERE SQL cuối cùng (ngoài if)
     where_sql = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
 
     # 3) SORT + PAGINATION
