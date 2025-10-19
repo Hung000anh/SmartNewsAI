@@ -97,20 +97,23 @@ async def list_news(
         where_parts.append(f"published_time <= ${len(params)}")
 
     if q:
-        keywords = q.split()
+        # 🧹 Loại bỏ ký tự đặc biệt, chỉ giữ lại chữ, số và khoảng trắng
+        cleaned_q = re.sub(r"[^a-zA-Z0-9\s]", " ", q)
+        keywords = cleaned_q.split()
         where_like_parts = []
+
         for word in keywords:
             like = f"%{word}%"
             params.append(like); t_idx = len(params)
             params.append(like); d_idx = len(params)
             params.append(like); id_idx = len(params)
-
+            print(f"LIKE conditions: title={like}, description={like}, id={like}")
             where_like_parts.append(
                 f"(title ILIKE ${t_idx} OR description ILIKE ${d_idx} OR CAST(id AS TEXT) ILIKE ${id_idx})"
             )
 
-        # ✅ Bắt buộc chứa tất cả từ khóa
-        where_parts.append("(" + " AND ".join(where_like_parts) + ")")
+        # 🔄 Chuyển sang tìm kiếm rộng (chỉ cần khớp 1 từ khóa)
+        where_parts.append("(" + " OR ".join(where_like_parts) + ")")
 
     # ✅ Ghép WHERE SQL cuối cùng (ngoài if)
     where_sql = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""

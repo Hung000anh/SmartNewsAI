@@ -69,3 +69,6 @@ docker-compose.yaml.bak
 
 # certs
 /server/certs
+
+
+/n8n_data

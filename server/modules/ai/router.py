@@ -83,7 +83,7 @@ async def fetch_and_classify_news(
     q: Optional[str] = Query(None, description="Keyword tìm kiếm tin tức (tùy chọn)"),
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     order_by: str = "published_time",
     order_dir: str = "DESC",

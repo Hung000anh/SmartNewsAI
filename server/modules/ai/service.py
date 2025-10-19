@@ -140,8 +140,6 @@ import os
 from typing import List
 from fastapi import HTTPException, Request
 from dotenv import load_dotenv
-from server.modules.ai.schemas import NewsAnalysisResponse, NewsAnalysisInput
-import google.generativeai as genai
 from openai import OpenAI
 load_dotenv()
 
