@@ -221,8 +221,6 @@ async def get_sections_nav(request: Request):
     # list_news returns a dict {'items': [...]}, pass the items list to build_sections_nav
     news_items = response_data.get("items", [])
     nav = build_sections_nav(news_items)
-
-    print(nav)
     return nav
 
 @router.post("/{news_id}/seen", summary="Increase view count for a news item")

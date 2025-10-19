@@ -1,0 +1,22 @@
+fastapi
+uvicorn
+pydantic
+python-dotenv
+requests
+sqlalchemy
+psycopg2-binary
+joblib
+numpy
+pandas
+scikit-learn
+tensorflow
+keras
+asyncpg
+supabase
+text_hammer
+spacy==3.7.5
+nltk
+en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
+openai
+bs4
+lxml
