@@ -51,6 +51,8 @@ Thumbs.db               # Windows specific
 
 # Environment variables
 .env
+.env.prod
+.env.dev
 .flaskenv
 
 # Jupyter Notebook
