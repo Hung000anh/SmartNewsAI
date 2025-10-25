@@ -1,31 +1,19 @@
-version: "3.9"
-
 services:
-  backend:
-    build:
-      context: .           # vì Dockerfile nằm trong server/
-      dockerfile: Dockerfile
-    container_name: smartnewsai_backend
-    env_file:
-      - .env            # 👈 file .env nằm ở ngoài thư mục server
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./server:/app/server            # mount toàn bộ server/ vào container /app
-    command: >
-      bash -lc "uvicorn server.main:app --host 0.0.0.0 --port 8000 --reload"
   n8n:
     image: n8nio/n8n:latest
     container_name: smartnewsai_n8n
+    restart: always
     ports:
-      - "5680:5678"                     # truy cập n8n qua http://localhost:5678
+      - "5678:5678"  # Map cổng container ra VPS
+    env_file:
+      - .env    # file bạn đã tạo
     environment:
       - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=${N8N_USER}         # từ file .env
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD} # từ file .env
-      - N8N_HOST=localhost
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
+      - N8N_BASIC_AUTH_USER=${N8N_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_PASSWORD}
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=${N8N_PORT}
+      - N8N_PROTOCOL=${N8N_PROTOCOL}
     volumes:
-      - ./n8n_data:/home/node/.n8n      # nơi lưu workflow, credentials,...
-    restart: always
+      - ./n8n_data:/home/node/.n8n   # Lưu workflow, credentials, database
+    user: "1000:1000"   # chạy container bằng UID node
